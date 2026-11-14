@@ -165,6 +165,13 @@ header .actions{display:flex; gap:8px;}
 .visit-pay{
   border-radius:8px; padding:8px 10px; display:flex; justify-content:space-between; font-size:12.5px;
 }
+.visit-pay{flex-wrap:wrap; row-gap:3px;}
+.visit-pay .saldo-line{flex-basis:100%; font-size:11px; opacity:.8;}
+.pay-card{padding:14px 16px;}
+.pay-card .pay-row{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+.pay-card .pay-info{display:flex; align-items:baseline; gap:12px; font-size:14px;}
+.pay-card .pay-date{color:var(--text2);}
+.pay-card .pay-amt{color:var(--success); font-size:15px; font-weight:500;}
 .visit-pay.paid{background:var(--success-bg); color:var(--success);}
 .visit-pay.debt{background:var(--danger-bg); color:var(--danger);}
 
@@ -532,13 +539,23 @@ function renderClientCard(){
   if(waBtn) waBtn.onclick = () => window.open(waLink(c.telefono), '_blank');
 }
 
+function fmtShort(f){ const p=(f||'').split('-'); return p.length===3 ? p[2]+'/'+p[1] : ''; }
 function renderVisits(){
   const el = $('visitsList');
   if(currentVisits.length === 0){
     el.innerHTML = `<div class="empty">Todavía no hay visitas cargadas.</div>`;
     return;
   }
-  el.innerHTML = currentVisits.map((v,i) => `
+  el.innerHTML = currentVisits.map((v,i) => v.tipo === 'pago' ? `
+    <div class="visit-card pay-card">
+      <div class="pay-row">
+        <div class="pay-info"><span class="pay-date">${fmtDate(v.fecha)}</span><span>Pagó</span></div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span class="mono pay-amt">${money(v.monto)}</span>
+          <button class="btn-icon btn-danger" data-delpay="${v.id}">Eliminar</button>
+        </div>
+      </div>
+    </div>` : `
     <div class="visit-card">
       <div class="visit-top">
         <div>
@@ -554,17 +571,19 @@ function renderVisits(){
       ${(v.detalles||[]).map(d => `
         <div class="detail-row"><span class="d">${d.descripcion||''}</span><span class="mono">${money(d.repuestos)}</span></div>
       `).join('')}
-      ${v.notas ? `<div class="visit-notas">${v.notas}</div>` : ''}
       <div class="visit-nums">
         <div><span>Mano de obra</span><span class="mono">${money(v.manoObra)}</span></div>
       </div>
+      ${v.notas ? `<div class="visit-notas">${v.notas}</div>` : ''}
       <div class="visit-total"><span>Total</span><span class="mono">${money(v.total)}</span></div>
       <div class="visit-pay ${v.debe > 0 ? 'debt' : 'paid'}">
         <span>Pagó <span class="mono">${money(v.pago)}</span></span>
         <span>${v.debe > 0 ? 'Debe <span class="mono">' + money(v.debe) + '</span>' : 'Pagado'}</span>
+        ${(v.saldos||[]).map(x => `<span class="saldo-line">Saldó <span class="mono">${money(x.monto)}</span> el ${fmtShort(x.fecha)}</span>`).join('')}
       </div>
     </div>`).join('');
   el.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => openVisitModal(currentVisits.find(v => v.id === b.dataset.edit)));
+  el.querySelectorAll('[data-delpay]').forEach(b => b.onclick = () => confirmDelete('pago', () => deletePayment(b.dataset.delpay)));
   el.querySelectorAll('[data-del]').forEach(b => b.onclick = () => confirmDelete('visita', () => deleteVisit(b.dataset.del)));
   el.querySelectorAll('[data-pdf]').forEach(b => b.onclick = () => exportVisitPDF(currentVisits.find(v => v.id === b.dataset.pdf)));
 }
@@ -594,27 +613,57 @@ function openPaymentModal(){
   $('pSave').onclick = async () => {
     const monto = moneyValue($('pMonto'));
     if(monto <= 0){ $('pError').textContent = 'Ingresá un monto mayor a $0.'; return; }
-    await applyPayment(currentClientId, monto);
+    await applyPayment(currentClientId, monto, $('pFecha').value || today);
     closeModal();
   };
 }
 
-async function applyPayment(clientId, monto){
-  const snap = await db.collection('clientes').doc(clientId).collection('visitas')
-    .orderBy('fecha','asc').get();
+async function applyPayment(clientId, monto, fecha){
+  const col = db.collection('clientes').doc(clientId).collection('visitas');
+  const snap = await col.orderBy('fecha','asc').get();
+  const payRef = col.doc();
   const batch = db.batch();
   let restante = monto;
+  const aplicados = [];
   snap.docs.forEach(doc => {
-    if(restante <= 0) return;
     const v = doc.data();
+    if(restante <= 0 || v.tipo === 'pago') return;
     const debe = v.debe||0;
     if(debe <= 0) return;
     const aplicado = Math.min(debe, restante);
     restante -= aplicado;
-    batch.update(doc.ref, { pago: (v.pago||0) + aplicado, debe: debe - aplicado });
+    aplicados.push({visitId: doc.id, monto: aplicado});
+    batch.update(doc.ref, {
+      debe: debe - aplicado,
+      saldos: (v.saldos||[]).concat([{payId: payRef.id, fecha, monto: aplicado}])
+    });
+  });
+  if(!aplicados.length) return;
+  batch.set(payRef, {
+    tipo:'pago', fecha, monto: monto - restante, aplicados,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
   });
   await batch.commit();
   await recomputeDebt(clientId);
+}
+
+async function deletePayment(payId){
+  const col = db.collection('clientes').doc(currentClientId).collection('visitas');
+  const payDoc = await col.doc(payId).get();
+  if(!payDoc.exists) return;
+  const batch = db.batch();
+  for(const a of (payDoc.data().aplicados||[])){
+    const vd = await col.doc(a.visitId).get();
+    if(!vd.exists) continue;
+    const v = vd.data();
+    batch.update(vd.ref, {
+      debe: (v.debe||0) + a.monto,
+      saldos: (v.saldos||[]).filter(x => x.payId !== payId)
+    });
+  }
+  batch.delete(payDoc.ref);
+  await batch.commit();
+  await recomputeDebt(currentClientId);
 }
 
 /* ---------- CLIENT MODAL ---------- */
@@ -716,8 +765,8 @@ function openVisitModal(v){
       <label style="margin-top:18px;">Arreglo</label>
       <div id="detailsList"></div>
       <button type="button" class="btn-ghost" id="addDetailBtn">+ Agregar arreglo</button>
-      <label>Notas</label><textarea id="vNotas" placeholder="Observaciones, recomendaciones, etc.">${v?.notas||''}</textarea>
       <label>Mano de obra</label><input id="vMano" class="mono" inputmode="numeric" placeholder="$0">
+      <label>Notas</label><textarea id="vNotas" placeholder="Observaciones, recomendaciones, etc.">${v?.notas||''}</textarea>
       <div class="totalPreview"><span>Total</span><span id="vTotalPreview" class="mono">$0</span></div>
       <label>Pagó</label><input id="vPago" class="mono" inputmode="numeric" placeholder="$0">
       <p class="error" id="vError"></p>
@@ -785,7 +834,8 @@ function openVisitModal(v){
     const pago = moneyValue($('vPago'));
     const repTotal = detallesOut.reduce((s,d) => s + (d.repuestos||0), 0);
     const total = repTotal + manoObra;
-    const debe = Math.max(0, total - pago);
+    const saldado = (v?.saldos||[]).reduce((t,x) => t + (x.monto||0), 0);
+    const debe = Math.max(0, total - pago - saldado);
     const data = {
       fecha, km: kmValue($('vKm')),
       detalles: detallesOut,
