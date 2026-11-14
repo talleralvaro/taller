@@ -17,7 +17,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#0A0A0A; --bg2:#141414; --card:#161616; --border:#282828;
+  --bg:#0A0A0A; --bg2:#141414; --card:#1D1D1D; --border:#2D2D2D;
   --text:#F5F5F5; --text2:#9A9A9A; --muted:#6E6E6E;
   --accent:#ECECEC; --accent-bg:rgba(255,255,255,.08); --accent-ink:#0A0A0A;
   --danger:#FF6B5B; --danger-bg:rgba(255,107,91,.16);
@@ -128,20 +128,23 @@ header .actions{display:flex; gap:8px;}
   background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
   padding:16px 18px; margin-bottom:20px;
 }
-.client-card-big .row1{display:flex; align-items:center; gap:12px; margin-bottom:12px;}
+.client-card-big .row1{display:flex; align-items:center; gap:12px; margin-bottom:10px;}
 .client-card-big .name{font-weight:600; font-size:16px;}
-.client-card-big .phone{font-size:13px; color:var(--text2); margin-top:2px;}
-.client-card-big .row1b{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px;}
-.client-card-big .row1b .card-actions{margin-left:auto;}
+.client-card-big .phone-line{display:flex; align-items:center; gap:8px; margin-top:2px; flex-wrap:wrap;}
+.client-card-big .phone{font-size:13px; color:var(--text2);}
 .client-card-big .row2{
-  border-top:1px solid var(--border); padding-top:10px; margin-top:2px;
-  display:grid; grid-template-columns:1fr 1fr; gap:10px;
+  border-top:1px solid var(--border); padding-top:10px;
+  display:flex; align-items:center; gap:22px;
 }
+.client-card-big .row2 .auto-line{margin-bottom:10px;}
+.client-card-big .row2 .wa-btn{margin-left:auto;}
+.client-card-big .auto-line{padding-top:10px; border-top:1px solid var(--border); margin-bottom:10px;}
 .field-label{font-size:11px; color:var(--muted);}
 .field-value{font-size:13.5px; margin-top:2px;}
 .card-actions{display:flex; gap:6px; margin-left:auto;}
 
-.visits-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;}
+.visits-header{display:grid; grid-template-columns:7fr 3fr; gap:8px; margin-bottom:14px;}
+.visits-header button{padding:9px 8px; font-size:13px; white-space:nowrap;}
 .visit-card{
   background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
   padding:14px 16px; margin-bottom:12px;
@@ -195,13 +198,15 @@ header .actions{display:flex; gap:8px;}
 }
 .check-icon.ok{color:var(--success);}
 .check-icon.bad{color:var(--danger);}
-.detail-item{
-  background:var(--card); border:1px solid var(--border); border-radius:10px; padding:12px; margin-bottom:10px;
-  position:relative;
-}
+.two-cols{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+.two-cols > div{min-width:0;}
+.two-cols input{min-width:0;}
+.detail-item{display:flex; align-items:center; gap:8px; margin-bottom:8px;}
+.detail-item .detDesc{flex:1; min-width:0;}
+.detail-item .detRep{width:92px; flex-shrink:0; font-size:13.5px; padding:11px 10px; text-align:right;}
 .detail-item .rm{
-  position:absolute; top:8px; right:8px; background:transparent; border:none; color:var(--muted);
-  font-size:13px; padding:2px 6px;
+  background:transparent; border:none; color:var(--muted); font-size:18px; line-height:1;
+  padding:4px 2px; flex-shrink:0;
 }
 .pdf-modal{max-width:600px;}
 .pdf-preview{background:#fff; color:#1a1a1a; border-radius:10px; overflow:hidden; max-height:62vh; overflow-y:auto; border:1px solid var(--border);}
@@ -231,9 +236,14 @@ header .actions{display:flex; gap:8px;}
 .login-logo{width:240px; max-width:80%; height:auto; object-fit:contain; display:block; margin:0 auto 34px;}
 .header-title{display:flex; align-items:center; gap:10px;}
 .header-logo{height:40px; width:auto; object-fit:contain; display:block; flex-shrink:0;}
+#appLoader{position:fixed;inset:0;z-index:9999;background:#0A0A0A;display:flex;align-items:center;justify-content:center;transition:opacity .4s ease}
+#appLoader.out{opacity:0;pointer-events:none}
+#appLoader img{width:68px;height:68px;animation:gearSpin 1.5s linear infinite}
+@keyframes gearSpin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
+<div id="appLoader"><img src="images/logo-gear.webp" alt=""></div>
 
 <div id="loginScreen" class="screen hidden">
   <div class="login-box">
@@ -269,11 +279,8 @@ header .actions{display:flex; gap:8px;}
     <button id="backBtn">← Volver</button>
     <div id="clientCard"></div>
     <div class="visits-header">
-      <h2>HISTORIAL DE VISITAS</h2>
-      <div style="display:flex; gap:8px;">
-        <button id="newPaymentBtn">+ Nuevo pago</button>
-        <button id="newVisitBtn" class="btn-primary">+ Nueva visita</button>
-      </div>
+      <button id="newVisitBtn" class="btn-primary">Nueva visita</button>
+      <button id="newPaymentBtn">Nuevo pago</button>
     </div>
     <div id="visitsList"></div>
   </div>
@@ -284,7 +291,6 @@ header .actions{display:flex; gap:8px;}
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
 const firebaseConfig = {
   apiKey: "AIzaSyBjxBmNOL72N2r4QzlT6MQUNooNvEivFss",
@@ -297,6 +303,8 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
+// Cache offline de Firestore: la segunda vez que se abre, los datos salen del dispositivo al instante
+db.enablePersistence({synchronizeTabs:true}).catch(()=>{});
 
 let allClients = [];
 let currentClientId = null;
@@ -386,6 +394,11 @@ try{
   else $('loginScreen').classList.add('hidden');
 }catch(e){ $('mainScreen').classList.add('hidden'); }
 
+function hideLoader(){
+  const l=$('appLoader'); if(!l||l.dataset.done) return;
+  l.dataset.done='1'; l.classList.add('out'); setTimeout(()=>l.remove(),450);
+}
+setTimeout(hideLoader,6000);
 auth.onAuthStateChanged(user => {
   try{ localStorage.setItem('ta_logged', user ? '1' : '0'); }catch(e){}
   if(user){
@@ -396,6 +409,7 @@ auth.onAuthStateChanged(user => {
     $('mainScreen').classList.add('hidden');
     $('fichaScreen').classList.add('hidden');
     $('loginScreen').classList.remove('hidden');
+    hideLoader();
     if(unsubClients) unsubClients();
     if(unsubVisits) unsubVisits();
   }
@@ -405,8 +419,10 @@ auth.onAuthStateChanged(user => {
 function listenClients(){
   unsubClients = db.collection('clientes').onSnapshot(snap => {
     allClients = snap.docs.map(d => ({id:d.id, ...d.data()}));
+    try{ localStorage.setItem('ta_clients', JSON.stringify(allClients)); }catch(e){}
     renderClientList();
     if(currentClientId) renderClientCard();
+    hideLoader();
   });
 }
 
@@ -447,6 +463,13 @@ function renderClientList(){
 }
 
 $('searchInput').oninput = renderClientList;
+// Mostrar al instante la última lista guardada mientras Firebase se conecta
+try{
+  const cached = JSON.parse(localStorage.getItem('ta_clients') || 'null');
+  if(Array.isArray(cached) && cached.length && localStorage.getItem('ta_logged') === '1'){
+    allClients = cached; renderClientList(); hideLoader();
+  }
+}catch(e){}
 $('debtorsBtn').onclick = () => {
   deudoresOnly = !deudoresOnly;
   $('debtorsBtn').classList.toggle('active', deudoresOnly);
@@ -482,25 +505,25 @@ function renderClientCard(){
   $('clientCard').innerHTML = `
     <div class="client-card-big">
       <div class="row1">
-        <div style="flex:1;">
+        <div style="flex:1; min-width:0;">
           <div class="name">${c.nombre} ${c.apellido}</div>
-          <div class="phone">${c.telefono||''}</div>
+          <div class="phone-line">
+            <span class="phone">${c.telefono||''}</span>
+            ${(c.totalDebe||0) > 0 ? `<div class="debt-pill">Debe <span class="mono">${money(c.totalDebe)}</span></div>` : ''}
+          </div>
         </div>
-        ${isValidPhone(c.telefono) ? `<button class="wa-btn" id="waFichaBtn" aria-label="Abrir WhatsApp"><img src="images/wa-icon.webp" alt="WhatsApp"></button>` : ''}
-      </div>
-      <div class="row1b">
-        ${(c.totalDebe||0) > 0 ? `<div class="debt-pill">Debe <span class="mono">${money(c.totalDebe)}</span></div>` : ''}
         <div class="card-actions">
           <button class="btn-icon" id="editClientBtn">Editar</button>
           <button class="btn-icon btn-danger" id="delClientBtn">Eliminar</button>
         </div>
       </div>
-      <div class="row2">
-        <div><div class="field-label">Auto</div><div class="field-value">${c.auto||'—'}</div></div>
-        <div><div class="field-label">Año</div><div class="field-value">${c.anio||'—'}</div></div>
+      <div class="auto-line">
+        <div class="field-label">Auto</div><div class="field-value">${c.auto||'—'}</div>
       </div>
-      <div class="row2" style="margin-top:10px;">
+      <div class="row2" style="border-top:none; padding-top:0;">
         <div><div class="field-label">Patente</div><div class="field-value mono">${c.patente||'—'}</div></div>
+        <div><div class="field-label">Año</div><div class="field-value">${c.anio||'—'}</div></div>
+        ${isValidPhone(c.telefono) ? `<button class="wa-btn" id="waFichaBtn" aria-label="Abrir WhatsApp"><img src="images/wa-icon.webp" alt="WhatsApp"></button>` : ''}
       </div>
     </div>`;
   $('editClientBtn').onclick = () => openClientModal(c);
@@ -669,9 +692,9 @@ async function deleteClient(id){
 function detailRowHtml(idx, desc, rep){
   return `
     <div class="detail-item" data-idx="${idx}">
-      <button type="button" class="rm" data-rm="${idx}">Quitar</button>
-      <label>Detalle</label><input class="detDesc" data-idx="${idx}" value="${desc||''}" placeholder="Ej: correa de distribución">
-      <label>Valor repuestos</label><input class="detRep mono" data-idx="${idx}" placeholder="$0">
+      <input class="detDesc" data-idx="${idx}" value="${desc||''}" placeholder="Ej: correa de distribución">
+      <input class="detRep mono" data-idx="${idx}" inputmode="numeric" placeholder="$0">
+      <button type="button" class="rm" data-rm="${idx}" aria-label="Quitar arreglo">&times;</button>
     </div>`;
 }
 
@@ -686,11 +709,13 @@ function openVisitModal(v){
         <h2>${v ? 'Editar visita' : 'Nueva visita'}</h2>
         <button type="button" class="modal-close" id="vClose">&times;</button>
       </div>
-      <label>Fecha</label><input id="vFecha" type="date" value="${v?.fecha||today}">
-      <label>Kilómetros</label><input id="vKm" class="mono" inputmode="numeric" placeholder="Ej: 127.000">
-      <label style="margin-top:18px;">Detalles</label>
+      <div class="two-cols">
+        <div><label>Fecha</label><input id="vFecha" type="date" value="${v?.fecha||today}"></div>
+        <div><label>Kilómetros</label><input id="vKm" class="mono" inputmode="numeric" placeholder="Ej: 127.000"></div>
+      </div>
+      <label style="margin-top:18px;">Arreglo</label>
       <div id="detailsList"></div>
-      <button type="button" class="btn-ghost" id="addDetailBtn">+ Agregar detalle</button>
+      <button type="button" class="btn-ghost" id="addDetailBtn">+ Agregar arreglo</button>
       <label>Notas</label><textarea id="vNotas" placeholder="Observaciones, recomendaciones, etc.">${v?.notas||''}</textarea>
       <label>Mano de obra</label><input id="vMano" class="mono" inputmode="numeric" placeholder="$0">
       <div class="totalPreview"><span>Total</span><span id="vTotalPreview" class="mono">$0</span></div>
@@ -805,7 +830,18 @@ function confirmDelete(label, onConfirm){
   $('cConfirm').onclick = async () => { await onConfirm(); closeModal(); };
 }
 
+function loadHtml2canvas(){
+  if(window.html2canvas) return Promise.resolve();
+  return new Promise((res, rej) => {
+    const sc = document.createElement('script');
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    sc.onload = res; sc.onerror = rej;
+    document.head.appendChild(sc);
+  });
+}
+
 async function buildVisitPNG(){
+  await loadHtml2canvas();
   // Capturamos el elemento de la vista previa que ya está visible en el modal
   // (en vez de un clon oculto fuera de pantalla, que en algunos navegadores
   // móviles se renderiza en blanco). Como ya está en pantalla, las fuentes
@@ -871,6 +907,7 @@ function visitPreviewHTML(v, c){
 async function exportVisitPDF(v){
   const c = allClients.find(x => x.id === currentClientId);
   if(!c || !v) return;
+  loadHtml2canvas().catch(()=>{});
   await logoReady;
   $('modalRoot').innerHTML = `
     <div class="modal-bg"><div class="modal pdf-modal">
